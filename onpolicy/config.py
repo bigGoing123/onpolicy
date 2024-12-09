@@ -166,7 +166,7 @@ def get_config():
     parser.add_argument("--cuda_deterministic",
                         action='store_false', default=True, help="by default, make sure random seed effective. if set, bypass such function.")
     parser.add_argument("--n_training_threads", type=int,
-                        default=1, help="Number of torch threads for training")
+                        default=16, help="Number of torch threads for training")
     parser.add_argument("--n_rollout_threads", type=int, default=32,
                         help="Number of parallel envs for training rollouts")
     parser.add_argument("--n_eval_rollout_threads", type=int, default=1,
@@ -175,7 +175,7 @@ def get_config():
                         help="Number of parallel envs for rendering rollouts")
     parser.add_argument("--num_env_steps", type=int, default=10e6,
                         help='Number of environment steps to train (default: 10e6)')
-    parser.add_argument("--user_name", type=str, default='marl', help="[for wandb usage], to specify user's name for simply collecting training data.")
+    parser.add_argument("--user_name", type=str, default='1256405274', help="[for wandb usage], to specify user's name for simply collecting training data.")
     parser.add_argument("--use_wandb", action='store_false', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
@@ -185,7 +185,7 @@ def get_config():
 
     # replay buffer parameters
     parser.add_argument("--episode_length", type=int,
-                        default=200, help="Max length for any episode")
+                        default=100, help="Max length for any episode")
 
     # network parameters
     parser.add_argument("--share_policy", action='store_false',

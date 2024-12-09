@@ -176,7 +176,7 @@ def main(args):
                          entity=all_args.user_name,
                          notes=socket.gethostname(),
                          name=str(all_args.algorithm_name) + "_" +
-                              str(all_args.experiment_name) + "_" + 
+                              str(all_args.map_name) + "_" + 
                               str(all_args.units) +
                               "_seed" + str(all_args.seed),
                         #  group=all_args.map_name,

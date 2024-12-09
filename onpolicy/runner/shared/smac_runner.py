@@ -110,6 +110,13 @@ class SMACRunner(Runner):
     @torch.no_grad()
     def collect(self, step):
         self.trainer.prep_rollout()
+        if self.algorithm_name == "mat":    
+            # 获取位置信息
+            positions = torch.tensor(self.buffer.obs[:, :, :2]).float().to(self.device)
+
+            # 传递位置信息
+            self.trainer.policy.set_positions(positions)
+
         value, action, action_log_prob, rnn_state, rnn_state_critic \
             = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
                                             np.concatenate(self.buffer.obs[step]),

@@ -1,0 +1,2 @@
+conda activate wac_mat
+cd onpolicy/scripts/train_smac_scripts/
