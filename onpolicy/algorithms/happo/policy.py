@@ -118,6 +118,10 @@ class HAPPO_Policy:
                                                                 active_masks)
 
         values, _ = self.critic(cent_obs, rnn_states_critic, masks)
+
+        # print("Available Actions:", available_actions)
+        # print("Action Log Probs:", action_log_probs)
+
         return values, action_log_probs, dist_entropy
 
 

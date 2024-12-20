@@ -16,6 +16,7 @@ def _t2n(x):
 class Runner(object):
     def __init__(self, config):
 
+
         self.all_args = config['all_args']
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']

@@ -8,8 +8,6 @@ import numpy as np
 from pathlib import Path
 import torch
 from onpolicy.config import get_config
-# os.environ["WANDB_API_KEY"] = 'KEY'
-# os.environ["WANDB_MODE"] = "offline"
 from onpolicy.envs.env_wrappers import ShareSubprocVecEnv, ShareDummyVecEnv
 
 """Train script for SMAC."""
@@ -180,12 +178,11 @@ def main(args):
                          name=str(all_args.algorithm_name) + "_" +
                               str(all_args.map_name) + "_" + 
                               str(all_args.units) +
-                              "_seed" + str(all_args.seed),
+                              "_seed" + str(all_args.seed)+"_render",
                         #  group=all_args.map_name,
                          dir=str(run_dir),
                          job_type="training",
-                         reinit=True,
-                         settings=wandb.Settings(start_method="thread"))
+                         reinit=True)
         all_args = wandb.config # for wandb sweep
     else:
         if not run_dir.exists():
@@ -235,7 +232,7 @@ def main(args):
 
     # run experiments
     if all_args.share_policy:
-        from onpolicy.runner.shared.smac_runner import SMACRunner as Runner
+        from onpolicy.runner.shared.smac_runner_render import SMACRunner as Runner
     else:
         from onpolicy.runner.separated.smac_runner import SMACRunner as Runner
 

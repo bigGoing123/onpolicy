@@ -17,7 +17,6 @@ class HAPPO():
                  args,
                  policy,
                  device=torch.device("cpu")):
-
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
@@ -36,12 +35,14 @@ class HAPPO():
         self._use_max_grad_norm = args.use_max_grad_norm
         self._use_clipped_value_loss = args.use_clipped_value_loss
         self._use_huber_loss = args.use_huber_loss
-        self._use_popart = args.use_popart
+        # self._use_popart = args.use_popart
+        self._use_popart = True
         self._use_valuenorm = args.use_valuenorm
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
 
         if self._use_popart:
+            print("1111")
             self.value_normalizer = PopArt(1, device=self.device)
         elif self._use_valuenorm:
             self.value_normalizer = ValueNorm(1, device = self.device)
@@ -167,6 +168,9 @@ class HAPPO():
 
         self.policy.critic_optimizer.step()
 
+        # print("Inputs to policy network (obs_batch):", obs_batch)
+        # print("Outputs (values, actions, log_probs):", values, action_log_probs)
+        # print("Policy Entropy:", dist_entropy)
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
     def train(self, buffer, update_actor=True):
@@ -181,6 +185,8 @@ class HAPPO():
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
         else:
             advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
+
+        # print("Advantages:", advantages)
 
         advantages_copy = advantages.copy()
         advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
@@ -214,6 +220,12 @@ class HAPPO():
                 train_info['actor_grad_norm'] += actor_grad_norm
                 train_info['critic_grad_norm'] += critic_grad_norm
                 train_info['ratio'] += imp_weights.mean()
+
+         # 动态调整学习率
+        for param_group in self.policy.actor_optimizer.param_groups:
+            param_group['lr'] = max(param_group['lr'] * 0.99, 1e-6)  # 衰减10%
+        for param_group in self.policy.critic_optimizer.param_groups:
+            param_group['lr'] = max(param_group['lr'] * 0.99, 1e-6)
 
         num_updates = self.ppo_epoch * self.num_mini_batch
 

@@ -13,6 +13,7 @@ class SMACRunner(Runner):
     """Runner class to perform training, evaluation. and data collection for SMAC. See parent class for details."""
     def __init__(self, config):
         super(SMACRunner, self).__init__(config)
+        self.best_eval_win_rate = 0.0
 
     def run(self):
         self.warmup()   
@@ -111,7 +112,8 @@ class SMACRunner(Runner):
     @torch.no_grad()
     def collect(self, step):
         self.trainer.prep_rollout()
-        if self.algorithm_name == "mat":    
+
+        if self.algorithm_name == "mat":
             # 获取位置信息
             positions = torch.tensor(self.buffer.obs[:, :, :2]).float().to(self.device)
 
@@ -233,7 +235,23 @@ class SMACRunner(Runner):
                 else:
                     self.writter.add_scalars("eval_win_rate", {"eval_win_rate": eval_win_rate}, total_num_steps)
 
-                    # 胜率提高时保存回放
+                # 保存回放
+                # replay_dir = os.path.join(self.run_dir, "replays")
+                # if not os.path.exists(replay_dir):
+                #     os.makedirs(replay_dir)
+                #
+                # from datetime import datetime
+                # replay_file = os.path.join(replay_dir,
+                #                            f"eval_replay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.SC2Replay")
+                #
+                # for env in self.eval_envs.envs:
+                #     if hasattr(env, 'save_replay'):
+                #         env.replay_dir = os.path.dirname(replay_file)  # 设置保存路径
+                #         env.replay_prefix = os.path.basename(replay_file).replace(".SC2Replay", "")
+                #         env.save_replay()
+                #         print(f"Replay saved to {replay_file}")
+
+                # 胜率提高时保存回放
                 if eval_win_rate > self.best_eval_win_rate:
                     self.best_eval_win_rate = eval_win_rate
                     print(f"New best eval win rate: {eval_win_rate}, saving replay.")
