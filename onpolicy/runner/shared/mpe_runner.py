@@ -12,7 +12,7 @@ class MPERunner(Runner):
     """Runner class to perform training, evaluation. and data collection for the MPEs. See parent class for details."""
     def __init__(self, config):
         super(MPERunner, self).__init__(config)
-
+        self.best_reward = config['best_reward']
     def run(self):
         self.warmup()   
 
@@ -70,6 +70,10 @@ class MPERunner(Runner):
                         env_infos[agent_k] = idv_rews
 
                 train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
+                if train_infos["average_episode_rewards"] > self.best_reward:
+                    self.best_reward = np.mean(idv_rews)
+                    self.save(episode=66666)#保存最好的模型
+                    print("save best model")
                 print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
@@ -150,13 +154,18 @@ class MPERunner(Runner):
     def eval(self, total_num_steps):
         eval_episode_rewards = []
         eval_obs = self.eval_envs.reset()
-
+        if self.use_centralized_V:
+            eval_share_obs = eval_obs.reshape(self.n_eval_rollout_threads, -1)
+            eval_share_obs = np.expand_dims(eval_share_obs, 1).repeat(self.num_agents, axis=1)
+        else:
+            eval_share_obs = eval_obs
         eval_rnn_states = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]), dtype=np.float32)
         eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
 
         for eval_step in range(self.episode_length):
             self.trainer.prep_rollout()
-            eval_action, eval_rnn_states = self.trainer.policy.act(np.concatenate(eval_obs),
+            eval_action, eval_rnn_states = self.trainer.policy.act(np.concatenate(eval_share_obs),
+                                                np.concatenate(eval_obs),
                                                 np.concatenate(eval_rnn_states),
                                                 np.concatenate(eval_masks),
                                                 deterministic=True)

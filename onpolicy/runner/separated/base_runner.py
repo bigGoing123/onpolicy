@@ -74,6 +74,9 @@ class Runner(object):
         elif self.all_args.algorithm_name == "hatrpo":
             from onpolicy.algorithms.hatrpo.hatrpo_trainer import HATRPO as TrainAlgo
             from onpolicy.algorithms.hatrpo.policy import HATRPO_Policy as Policy
+        elif self.all_args.algorithm_name == "mat":
+            from onpolicy.algorithms.mat.mat_trainer import MATTrainer as TrainAlgo
+            from onpolicy.algorithms.mat.algorithm.transformer_policy import TransformerPolicy as Policy
         else:
             from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
@@ -87,11 +90,19 @@ class Runner(object):
         for agent_id in range(self.num_agents):
             share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
             # policy network
-            po = Policy(self.all_args,
-                        self.envs.observation_space[agent_id],
-                        share_observation_space,
-                        self.envs.action_space[agent_id],
-                        device = self.device)
+            if self.all_args.algorithm_name == "mat":
+                po = Policy(self.all_args,
+                            self.envs.observation_space[agent_id],
+                            share_observation_space,
+                            self.envs.action_space[agent_id],
+                            self.num_agents,
+                            device = self.device)
+            else:
+                po = Policy(self.all_args,
+                            self.envs.observation_space[agent_id],
+                            share_observation_space,
+                            self.envs.action_space[agent_id],
+                            device = self.device)
             self.policy.append(po)
 
         if self.model_dir is not None:
@@ -101,7 +112,10 @@ class Runner(object):
         self.buffer = []
         for agent_id in range(self.num_agents):
             # algorithm
-            tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
+            if self.all_args.algorithm_name == "mat":
+                tr = TrainAlgo(self.all_args, self.policy[agent_id], self.num_agents, device = self.device)
+            else:
+                tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
             # buffer
             share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
             bu = SeparatedReplayBuffer(self.all_args,

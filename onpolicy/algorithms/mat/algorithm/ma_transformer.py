@@ -42,6 +42,7 @@ class SelfAttention(nn.Module):
         # 计数
         self.step_counter = 0
         self.cached_att_mask = None
+        self.cached_positions = None
 
     def forward(self, key, value, query, positions):
         if positions is None:
@@ -66,32 +67,75 @@ class SelfAttention(nn.Module):
         if not hasattr(self, 'step_counter'):
             self.step_counter = 0
             self.cached_att_mask = None
+            self.cached_positions = None  # 缓存上次更新时的位置
+
         # 更新通信掩码的频率
         update_frequency = 5000
         self.step_counter += 1
 
-        if self.masked:
-            if (self.step_counter % update_frequency == 0 or self.cached_att_mask is None or
-                    self.cached_att_mask.shape != att.shape):
-                # print(self.step_counter)
-                batch_size = B
-                seq_len = L
-                num_heads = self.n_head
-                self.cached_att_mask = apply_local_communication(
-                    att.detach().clone(),  # 确保没有计算图依赖
-                    positions,
-                    n_clusters=self.n_head,
-                    batch_size=batch_size,
-                    num_heads=num_heads,
-                    seq_len=seq_len,
-                ).detach().clone()
+        # 计算智能体位置变化
+        if self.cached_positions is not None:
+            position_change = torch.mean(torch.abs(positions - self.cached_positions))
+        else:
+            position_change = float('inf')  # 初次初始化时，强制触发更新
 
-                # 使用缓存的掩码
-            att = self.cached_att_mask
+        # 更新掩码的条件：步长条件 或 位置变化超过阈值
+        threshold = 0.3  # 根据环境动态性设置阈值
+        if (self.step_counter % update_frequency == 0 or
+                self.cached_att_mask is None or
+                position_change > threshold):
+            # print(f"Step {self.step_counter}: Updating cached_att_mask (Position Change: {position_change})")
+            batch_size = B
+            seq_len = L
+            num_heads = self.n_head
+            self.cached_att_mask = apply_local_communication(
+                att.detach().clone(),
+                positions,
+                n_clusters=self.n_head,
+                batch_size=batch_size,
+                num_heads=num_heads,
+                seq_len=seq_len,
+            )
+            # print(f"Step {self.step_counter}: Updated cached_att_mask {self.cached_att_mask.shape}")
+            self.cached_positions = positions.detach().clone()
 
-        att = F.softmax(att, dim=-1)
+        # Debug: 检查掩码和输入的形状
+        # if self.cached_att_mask is not None:
+        #     assert self.cached_att_mask.shape == att.shape, \
+        #         f"Shape mismatch: cached_att_mask {self.cached_att_mask.shape}, att {att.shape}"
+        att1 = self.cached_att_mask
 
-        y = att @ v  # (B, nh, L, L) x (B, nh, L, hs) -> (B, nh, L, hs)
+        #
+        # if self.masked:
+        #     if (self.step_counter % update_frequency == 0 or self.cached_att_mask is None or
+        #             self.cached_att_mask.shape != att.shape):
+        #         # print(self.step_counter)
+        #         batch_size = B
+        #         seq_len = L
+        #         num_heads = self.n_head
+        #         self.cached_att_mask = apply_local_communication(
+        #             att.detach().clone(),  # 确保没有计算图依赖
+        #             positions,
+        #             n_clusters=self.n_head,
+        #             batch_size=batch_size,
+        #             num_heads=num_heads,
+        #             seq_len=seq_len,
+        #         ).detach().clone()
+        #     else:
+        #         att = att.masked_fill(self.mask[:, :, :L, :L] == 0, float('-inf'))
+        #         # 使用缓存的掩码
+        #     att = self.cached_att_mask
+
+        # 原始
+        # batch_size = B
+        # seq_len = L
+        # num_heads = self.n_head
+        # att = apply_local_communication(att, positions, n_clusters=self.n_head,batch_size=batch_size, num_heads=num_heads, seq_len=seq_len)
+        # print(f"Step {self.step_counter}: Updated cached_att_mask {att.shape}")
+
+        att1 = F.softmax(att, dim=-1)
+
+        y = att1 @ v  # (B, nh, L, L) x (B, nh, L, hs) -> (B, nh, L, hs)
         y = y.transpose(1, 2).contiguous().view(B, L, D)  # re-assemble all head outputs side by side
 
         # output projection
@@ -272,7 +316,7 @@ class MultiAgentTransformer(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.action_type = action_type
         self.device = device
-
+        self.position = None
         # state unused
         state_dim = 37
 

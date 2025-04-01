@@ -56,23 +56,18 @@ def apply_local_communication(att, positions, n_clusters, batch_size, num_heads,
     应用局部通信机制，使用领导者-跟随者框架
     :param att: 原始注意力矩阵 [batch_size, num_heads, seq_len, seq_len]
     :param positions: 智能体的位置 (batch_size, num_agents, 2, num_timesteps)
-    :param n_clusters: 领导者数量
+    :param n_clusters: 领导者数量    # print(
+    #     f"Debug: positions shape before apply_local_communication: {positions.shape if positions is not None else 'None'}")
     :param batch_size: 批量大小
     :param num_heads: 注意力头数
     :param seq_len: 序列长度（即智能体数量）
     :return: 局部通信后的注意力矩阵
     """
-    # Debugging: print positions to track if it's None
-    # print(
-    #     f"Debug: positions shape before apply_local_communication: {positions.shape if positions is not None else 'None'}")
+
 
     if positions is None:
         print("Error: positions is None in apply_local_communication!")
         raise ValueError("positions should not be None!")
-
-    # 更新
-
-
     # Reshape positions to a 2D array (batch_size * num_agents, num_timesteps)
     positions_np = positions.view(-1, 2).cpu().numpy()
 

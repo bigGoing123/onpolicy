@@ -188,9 +188,11 @@ class MPERunner(Runner):
             eval_temp_actions_env = []
             for agent_id in range(self.num_agents):
                 self.trainer[agent_id].prep_rollout()
-                eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
-                                                                                eval_rnn_states[:, agent_id],
-                                                                                eval_masks[:, agent_id],
+                eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(cent_obs=np.array(list(eval_obs[:, agent_id])),
+                                                                                obs=np.array(list(eval_obs[:, agent_id])),
+                                                                                rnn_states_actor=eval_rnn_states[:, agent_id],
+                                                                                rnn_states_critic=eval_rnn_states[:, agent_id],
+                                                                                masks=eval_masks[:, agent_id],
                                                                                 deterministic=True)
 
                 eval_action = eval_action.detach().cpu().numpy()
@@ -257,9 +259,10 @@ class MPERunner(Runner):
                     if not self.use_centralized_V:
                         share_obs = np.array(list(obs[:, agent_id]))
                     self.trainer[agent_id].prep_rollout()
-                    action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(obs[:, agent_id])),
-                                                                        rnn_states[:, agent_id],
-                                                                        masks[:, agent_id],
+                    action, rnn_state = self.trainer[agent_id].policy.act(cent_obs=np.array([]),
+                                                                        obs=np.array(list(obs[:, agent_id])),
+                                                                        rnn_states_actor=rnn_states[:, agent_id],
+                                                                        masks=masks[:, agent_id],
                                                                         deterministic=True)
 
                     action = action.detach().cpu().numpy()

@@ -116,7 +116,6 @@ class SMACRunner(Runner):
         if self.algorithm_name == "mat":
             # 获取位置信息
             positions = torch.tensor(self.buffer.obs[:, :, :2]).float().to(self.device)
-
             # 传递位置信息
             self.trainer.policy.set_positions(positions)
 
