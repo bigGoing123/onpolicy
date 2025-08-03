@@ -184,7 +184,8 @@ def main(args):
                         #  group=all_args.map_name,
                          dir=str(run_dir),
                          job_type="training",
-                         reinit=True)
+                         reinit=True,
+                         settings=wandb.Settings(start_method="thread"),mode="offline")
         all_args = wandb.config # for wandb sweep
     else:
         if not run_dir.exists():
