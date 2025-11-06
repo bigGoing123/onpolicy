@@ -40,7 +40,9 @@ class Runner(object):
         self.use_wandb = self.all_args.use_wandb
         self.use_render = self.all_args.use_render
         self.recurrent_N = self.all_args.recurrent_N
+        self.prefix_name = self.all_args.prefix_name
 
+        
         # interval
         self.save_interval = self.all_args.save_interval
         self.use_eval = self.all_args.use_eval
@@ -50,6 +52,7 @@ class Runner(object):
         # dir
         self.model_dir = self.all_args.model_dir
         self.gif_dir = self.all_args.gif_dir
+
         if self.use_wandb:
             self.save_dir = str(wandb.run.dir)
             self.run_dir = str(wandb.run.dir)
@@ -78,7 +81,12 @@ class Runner(object):
         
         # policy network
         if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
-            self.policy = Policy(self.all_args, self.envs.observation_space[0], share_observation_space, self.envs.action_space[0], self.num_agents, device = self.device)
+            self.policy = Policy(self.all_args,
+                                self.envs.observation_space[0],
+                                share_observation_space,
+                                self.envs.action_space[0], 
+                                self.num_agents,
+                                device = self.device)
         else:
             self.policy = Policy(self.all_args, self.envs.observation_space[0], share_observation_space, self.envs.action_space[0], device = self.device)
 
@@ -96,7 +104,8 @@ class Runner(object):
                                         self.num_agents,
                                         self.envs.observation_space[0],
                                         share_observation_space,
-                                        self.envs.action_space[0])
+                                        self.envs.action_space[0],
+                                        self.all_args.env_name)
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""

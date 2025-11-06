@@ -10,10 +10,11 @@ import torch
 from onpolicy.config import get_config
 from onpolicy.envs.mpe.MPE_env import MPEEnv
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
-import matplotlib.font_manager as fm
+
 from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
-_ = fm._load_fontmanager(try_read_cache=False)
+
 """Train script for MPEs."""
+
 
 def make_train_env(all_args):
     def get_env_fn(rank):
@@ -54,47 +55,14 @@ def make_eval_env(all_args):
 def parse_args(args, parser):
     parser.add_argument('--scenario_name', type=str,
                         default='simple_spread', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int,
-                        default=3)
+    parser.add_argument("--num_landmarks", type=int, default=3)
     parser.add_argument('--num_agents', type=int,
                         default=3, help="number of players")
-    parser.add_argument('--nenemies', type=int, default=1,
-                         help="Total number of preys in play")
-    parser.add_argument('--dim', type=int, default=5,
-                        help="Dimension of box")
-    parser.add_argument('--vision', type=int, default=1,
-                        help="Vision of predator")
-    parser.add_argument('--moving_prey', action="store_true", default=False,
-                        help="Whether prey is fixed or moving")
-    parser.add_argument('--no_stay', action="store_true", default=False,
-                        help="Whether predators have an action to stay in place")
-    parser.add_argument('--mode', default='mixed', type=str,
-                    help='cooperative|competitive|mixed (default: mixed)')
-    parser.add_argument('--enemy_comm', action="store_true", default=False,
-                        help="Whether prey can communicate.")
-    parser.add_argument('--nfriendly_P', type=int, default=2,
-                        help="Total number of friendly perception agents in play")
-    parser.add_argument('--nfriendly_A', type=int, default=1,
-                        help="Total number of friendly action agents in play")
-    parser.add_argument('--tensor_obs', action="store_true", default=False,
-                        help="Do you want a tensor observation")
-    parser.add_argument('--second_reward_scheme', action="store_true", default=False,
-                        help="Do you want a partial reward for capturing and partial for getting to it?")
-    parser.add_argument('--A_vision', type=int, default=-1,
-                        help="Vision of A agents. If -1, defaults to blind")
-    parser.add_argument('--eval_episode_length', type=int, default=20)
+    parser.add_argument('--num_good_agents', type=int,
+                        default=1, help="number of good agents")
+    parser.add_argument('--num_adversaries', type=int,
+                        default=2, help="number of adversaries")
     all_args = parser.parse_known_args(args)[0]
-
-    all_args.nfriendly = all_args.nfriendly_P + all_args.nfriendly_A
-    all_args.num_agents = all_args.nfriendly
-    all_args.npredator = all_args.num_agents
-
-    # Enemy comm
-    if hasattr(all_args, 'enemy_comm') and all_args.enemy_comm:
-        if hasattr(all_args, 'nenemies'):
-            all_args.num_agents += all_args.nenemies
-        else:
-            raise RuntimeError("parser. needs to pass argument 'nenemy'.")
 
     return all_args
 
@@ -133,9 +101,9 @@ def main(args):
         device = torch.device("cpu")
         torch.set_num_threads(all_args.n_training_threads)
 
-    # run dir
+     # run dir
     run_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
-                   0] + "/results") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name
+                   0] + "/results") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name / all_args.prefix_name
     if not run_dir.exists():
         os.makedirs(str(run_dir))
 
@@ -145,18 +113,23 @@ def main(args):
                          project=all_args.env_name,
                          entity=all_args.user_name,
                          notes=socket.gethostname(),
-                         name=str(all_args.algorithm_name) + "_" +
+                         name=str(all_args.algorithm_name) + "_" +str(all_args.scenario_name) +"_"+
                          str(all_args.experiment_name) +
                          "_seed" + str(all_args.seed),
                          group=all_args.scenario_name,
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True,
-                         settings=wandb.Settings(start_method="thread",mode="online"))
+                         settings=wandb.Settings(start_method="thread",mode="offline"))
     else:
-        import time
-        timestr = time.strftime("%y%m%d-%H%M%S")
-        curr_run = all_args.prefix_name + "-" + timestr
+        if not run_dir.exists():
+            curr_run = 'run1'
+        else:
+            exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in run_dir.iterdir() if str(folder.name).startswith('run')]
+            if len(exst_run_nums) == 0:
+                curr_run = 'run1'
+            else:
+                curr_run = 'run%i' % (max(exst_run_nums) + 1)
         run_dir = run_dir / curr_run
         if not run_dir.exists():
             os.makedirs(str(run_dir))

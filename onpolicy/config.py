@@ -16,7 +16,7 @@ def get_config():
                         action='store_false', default=True, help="by default, make sure random seed effective. if set, bypass such function.")
     parser.add_argument("--n_training_threads", type=int,
                         default=1, help="Number of torch threads for training")
-    parser.add_argument("--n_rollout_threads", type=int, default=1,
+    parser.add_argument("--n_rollout_threads", type=int, default=32,
                         help="Number of parallel envs for training rollouts")
     parser.add_argument("--n_eval_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for evaluating rollouts")
@@ -34,7 +34,7 @@ def get_config():
 
     # replay buffer parameters
     parser.add_argument("--episode_length", type=int,
-                        default=100, help="Max length for any episode")
+                        default=200, help="Max length for any episode")
 
     # network parameters
     parser.add_argument("--share_policy", action='store_false',
@@ -47,7 +47,7 @@ def get_config():
                         default=False, help="Whether to use stacked_frames")
     parser.add_argument("--hidden_size", type=int, default=64,
                         help="Dimension of hidden layers for actor/critic networks") 
-    parser.add_argument("--layer_N", type=int, default=1,
+    parser.add_argument("--layer_N", type=int, default=2,
                         help="Number of layers for actor/critic networks")
     parser.add_argument("--use_ReLU", action='store_false',
                         default=True, help="Whether to use ReLU")
@@ -124,7 +124,7 @@ def get_config():
     parser.add_argument("--use_linear_lr_decay", action='store_true',
                         default=False, help='use a linear schedule on the learning rate')
     # save parameters
-    parser.add_argument("--save_interval", type=int, default=1, help="time duration between contiunous twice models saving.")
+    parser.add_argument("--save_interval", type=int, default=100, help="time duration between contiunous twice models saving.")
 
     # log parameters
     parser.add_argument("--log_interval", type=int, default=5, help="time duration between contiunous twice log printing.")

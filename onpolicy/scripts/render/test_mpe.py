@@ -66,14 +66,14 @@ def main(args):
 
     # run dir
     run_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
-                   0] + "/results") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name
+                   0] + "/results") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name / all_args.prefix_name
     if not run_dir.exists():
         os.makedirs(str(run_dir))
     setproctitle.setproctitle(str(all_args.algorithm_name) + "-" + \
         str(all_args.env_name) + "-" + str(all_args.experiment_name) + "@" + str(all_args.user_name))
 
     gif_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
-                   0] + "/renders") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name
+                   0] + "/renders") / all_args.env_name / all_args.scenario_name / all_args.algorithm_name / all_args.experiment_name 
     if not gif_dir.exists():
         os.makedirs(str(gif_dir))
     all_args.gif_dir = gif_dir
