@@ -7,7 +7,7 @@ def get_config():
 
     # prepare parameters
     parser.add_argument("--algorithm_name", type=str,
-                        default='mappo', choices=["rmappo", "mappo", "happo", "hatrpo", "mat", "mat_dec"])
+                        default='mappo', choices=["rmappo", "mappo", "happo", "hatrpo", "mat", "mat_dec","commformer","commformer_dec"], help="algorithm name")
 
     parser.add_argument("--experiment_name", type=str, default="check", help="an identifier to distinguish different experiment.")
     parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
@@ -77,6 +77,8 @@ def get_config():
     parser.add_argument("--opti_eps", type=float, default=1e-5,
                         help='RMSprop optimizer epsilon (default: 1e-5)')
     parser.add_argument("--weight_decay", type=float, default=0)
+    parser.add_argument("--edge_lr", type=float, default=1e-4,
+                        help='edge learning rate (default: 1e-4), only for commformer')
 
     # trpo parameters
     parser.add_argument("--kl_threshold", type=float, 
@@ -153,5 +155,14 @@ def get_config():
     # add for online multi-task
     parser.add_argument("--train_maps", type=str, nargs='+', default=None)
     parser.add_argument("--eval_maps", type=str, nargs='+', default=None)
+    parser.add_argument("--prefix_name", type=str, default='mgdt')
+    parser.add_argument("--sparsity", type=float, default=0.4)
+    parser.add_argument("--use_bilevel", action='store_true', default=False)
+    parser.add_argument("--warmup", type=int, default=10)
+    parser.add_argument("--post_stable", action='store_true', default=False)
+    parser.add_argument("--post_ratio", type=float, default=0.5)
+    parser.add_argument("--self_loop_add", action='store_false', default=True)
+    parser.add_argument("--alg_seed", type=int, default=1)
+    parser.add_argument("--no_relation_enhanced", action='store_true', default=False)
     
     return parser

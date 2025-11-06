@@ -60,21 +60,23 @@ class MultiAgentEnv(gym.Env):
             total_action_space = []
             
             # physical action space
+            if self.discrete_action_space:
+                u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
+            else:
+                u_action_space = spaces.Box(
+                    low=-agent.u_range, high=+agent.u_range, shape=(world.dim_p,), dtype=np.float32)  # [-1,1]
             if agent.movable:
-                if self.discrete_action_space:
-                    u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
-                else:
-                    u_action_space = spaces.Box(low=-agent.u_range, high=+agent.u_range, shape=(world.dim_p,), dtype=np.float32)  # [-1,1]
                 total_action_space.append(u_action_space)
 
             # communication action space
-            if not agent.silent:
-                if self.discrete_action_space:
-                    c_action_space = spaces.Discrete(world.dim_c)
-                else:
-                    c_action_space = spaces.Box(low=0.0, high=1.0, shape=(world.dim_c,), dtype=np.float32)  # [0,1]
-                total_action_space.append(c_action_space)
+            if self.discrete_action_space:
+                c_action_space = spaces.Discrete(world.dim_c)
+            else:
+                c_action_space = spaces.Box(low=0.0, high=1.0, shape=(
+                    world.dim_c,), dtype=np.float32)  # [0,1]
             
+            if not agent.silent:
+                total_action_space.append(c_action_space)
             # total action space
             if len(total_action_space) > 1:
                 # all action spaces are discrete, so simplify to MultiDiscrete action space
@@ -88,7 +90,10 @@ class MultiAgentEnv(gym.Env):
                 self.action_space.append(total_action_space[0])
             
             # observation space
-            obs_dim = len(observation_callback(agent, self.world))
+            # obs_dim = len(observation_callback(agent, self.world))
+            obs_dim = len(observation_callback(agent, self.world)) + self.n
+            # obs_dim = 25 * (len(observation_callback(agent, self.world)) + self.n)
+            # obs_dim = 4 * len(observation_callback(agent, self.world))
             share_obs_dim += obs_dim
             self.observation_space.append(spaces.Box(
                 low=-np.inf, high=+np.inf, shape=(obs_dim,), dtype=np.float32))  # [-inf,inf]
@@ -96,7 +101,12 @@ class MultiAgentEnv(gym.Env):
         
         self.share_observation_space = [spaces.Box(
             low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32) for _ in range(self.n)]
-        
+
+        # self.stacked_obs = np.zeros(
+        #     (self.n, 25, len(observation_callback(self.agents[0], self.world)) + self.n), dtype=np.float32)
+        # self.stacked_obs = np.zeros(
+        #     (self.n, 4, len(observation_callback(self.agents[0], self.world))), dtype=np.float32)
+
         # rendering
         self.shared_viewer = shared_viewer
         if self.shared_viewer:
@@ -126,7 +136,13 @@ class MultiAgentEnv(gym.Env):
         self.world.step()  # core.step()
         # record observation for each agent
         for i, agent in enumerate(self.agents):
-            obs_n.append(self._get_obs(agent))
+            # print("i: ", i)
+            agent_id_feats = np.zeros(self.n, dtype=np.float32)
+            agent_id_feats[i] = 1.0
+            obs_i = np.concatenate([self._get_obs(agent), agent_id_feats])
+            obs_n.append(obs_i)
+            # obs_n.append(self._get_obs(agent))
+            # print("obs_n: ", obs_n)
             reward_n.append([self._get_reward(agent)])
             done_n.append(self._get_done(agent))
             info = {'individual_reward': self._get_reward(agent)}
@@ -143,6 +159,10 @@ class MultiAgentEnv(gym.Env):
         if self.post_step_callback is not None:
             self.post_step_callback(self.world)
 
+        # self.stacked_obs = np.roll(self.stacked_obs, 1, axis=1)
+        # self.stacked_obs[:, -1, :] = np.array(obs_n).copy()
+        # local_obs = self.stacked_obs.reshape(self.n, -1)
+        # return local_obs, reward_n, done_n, info_n
         return obs_n, reward_n, done_n, info_n
 
     def reset(self):
@@ -155,9 +175,17 @@ class MultiAgentEnv(gym.Env):
         obs_n = []
         self.agents = self.world.policy_agents
 
-        for agent in self.agents:
-            obs_n.append(self._get_obs(agent))
+        for i, agent in enumerate(self.agents):
+            agent_id_feats = np.zeros(self.n, dtype=np.float32)
+            agent_id_feats[i] = 1.0
+            obs_i = np.concatenate([self._get_obs(agent), agent_id_feats])
+            obs_n.append(obs_i)
+            # obs_n.append(self._get_obs(agent))
 
+        # self.stacked_obs = np.roll(self.stacked_obs, 1, axis=1)
+        # self.stacked_obs[:, -1, :] = np.array(obs_n).copy()
+        # local_obs = self.stacked_obs.reshape(self.n, -1)
+        # return local_obs
         return obs_n
 
     # get info used for benchmarking

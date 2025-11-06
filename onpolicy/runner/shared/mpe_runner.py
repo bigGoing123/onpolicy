@@ -8,6 +8,22 @@ import imageio
 def _t2n(x):
     return x.detach().cpu().numpy()
 
+def merge_stat(src, dest):
+    for k, v in src.items():
+        if not k in dest:
+            dest[k] = v
+        elif isinstance(v, numbers.Number):
+            dest[k] = dest.get(k, 0) + v
+        elif isinstance(v, np.ndarray): # for rewards in case of multi-agent
+            dest[k] = dest.get(k, 0) + v
+        else:
+            if isinstance(dest[k], list) and isinstance(v, list):
+                dest[k].extend(v)
+            elif isinstance(dest[k], list):
+                dest[k].append(v)
+            else:
+                dest[k] = [dest[k], v]
+
 class MPERunner(Runner):
     """Runner class to perform training, evaluation. and data collection for the MPEs. See parent class for details."""
     def __init__(self, config):
@@ -72,6 +88,13 @@ class MPERunner(Runner):
                 print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
+
+                if self.algorithm_name == "commformer" or self.algorithm_name == "commformer_dec":
+                    edges = _t2n(self.trainer.policy.transformer.edges)
+                    print(edges)
+                    edges = _t2n(self.trainer.policy.transformer.edge_return(exact=True))
+                    image = torch.from_numpy(edges).unsqueeze(0).unsqueeze(0)
+                    self.writer.add_image('Matrix', image, dataformats='NCHW', global_step=total_num_steps)
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
@@ -149,9 +172,20 @@ class MPERunner(Runner):
         eval_rnn_states = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]), dtype=np.float32)
         eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
 
+
+        eval_episode = 0
+        eval_episode_rewards = []
+        one_episode_rewards = [0 for _ in range(self.all_args.eval_episodes)]
+        eval_episode_scores = []
+        one_episode_scores = [0 for _ in range(self.all_args.eval_episodes)]
+        eval_episode_steps = []
+        one_episode_steps = [0 for _ in range(self.all_args.eval_episodes)]
+        flag = [False for _ in range(self.all_args.eval_episodes)]
+
         for eval_step in range(self.episode_length):
             self.trainer.prep_rollout()
-            eval_action, eval_rnn_states = self.trainer.policy.act(np.concatenate(eval_share_obs),
+            eval_action, eval_rnn_states = self.trainer.policy.act(
+                                                np.concatenate(eval_share_obs),
                                                 np.concatenate(eval_obs),
                                                 np.concatenate(eval_rnn_states),
                                                 np.concatenate(eval_masks),
@@ -173,18 +207,50 @@ class MPERunner(Runner):
 
             # Obser reward and next obs
             eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
-            eval_episode_rewards.append(eval_rewards)
+
+            eval_rewards = np.mean(eval_rewards, axis=1).flatten()
+            one_episode_rewards += eval_rewards
+
+            one_episode_steps += np.array([1 for _ in range(self.all_args.eval_episodes)])
 
             eval_rnn_states[eval_dones == True] = np.zeros(((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
             eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
 
-        eval_episode_rewards = np.array(eval_episode_rewards)
-        eval_env_infos = {}
-        eval_env_infos['eval_average_episode_rewards'] = np.sum(np.array(eval_episode_rewards), axis=0)
-        eval_average_episode_rewards = np.mean(eval_env_infos['eval_average_episode_rewards'])
-        print("eval average episode rewards of agent: " + str(eval_average_episode_rewards))
+            for eval_i in range(self.n_eval_rollout_threads):
+                if eval_dones[eval_i][0] == True:
+                    eval_episode += 1
+                    eval_episode_rewards.append(one_episode_rewards[eval_i])
+                    one_episode_rewards[eval_i] = 0
+
+                    eval_episode_steps.append(one_episode_steps[eval_i])
+                    one_episode_steps[eval_i] = 0
+
+                    flag[eval_i] = True
+            
+            if eval_episode >= self.all_args.eval_episodes:
+                break
+
+        if len(eval_episode_rewards) < self.all_args.eval_episodes:
+            for eval_i in range(self.n_eval_rollout_threads):
+                if flag[eval_i] == False:
+                    eval_episode_rewards.append(one_episode_rewards[eval_i])
+                    eval_episode_steps.append(one_episode_steps[eval_i])
+                
+                if len(eval_episode_rewards) >= self.all_args.eval_episodes:
+                    break
+
+
+        key_average = '/eval_average_episode_rewards'
+        key_max = '/eval_max_episode_rewards'
+        key_steps = '/eval_average_steps'
+        eval_env_infos = {key_average: eval_episode_rewards,
+                            key_max: [np.max(eval_episode_rewards)],
+                            key_steps: eval_episode_steps}
         self.log_env(eval_env_infos, total_num_steps)
+
+        print("eval average episode rewards: {}, steps: {}"
+                .format(np.mean(eval_episode_rewards), np.mean(eval_episode_steps)))
 
     @torch.no_grad()
     def render(self):

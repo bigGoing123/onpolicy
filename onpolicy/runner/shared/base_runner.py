@@ -63,7 +63,7 @@ class Runner(object):
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
 
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
             from onpolicy.algorithms.mat.mat_trainer import MATTrainer as TrainAlgo
             from onpolicy.algorithms.mat.algorithm.transformer_policy import TransformerPolicy as Policy
         else:
@@ -77,7 +77,7 @@ class Runner(object):
         print("act_space: ", self.envs.action_space)
         
         # policy network
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
             self.policy = Policy(self.all_args, self.envs.observation_space[0], share_observation_space, self.envs.action_space[0], self.num_agents, device = self.device)
         else:
             self.policy = Policy(self.all_args, self.envs.observation_space[0], share_observation_space, self.envs.action_space[0], device = self.device)
@@ -86,7 +86,7 @@ class Runner(object):
             self.restore(self.model_dir)
 
         # algorithm
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
             self.trainer = TrainAlgo(self.all_args, self.policy, self.num_agents, device = self.device)
         else:
             self.trainer = TrainAlgo(self.all_args, self.policy, device = self.device)
@@ -121,11 +121,16 @@ class Runner(object):
     def compute(self):
         """Calculate returns for the collected data."""
         self.trainer.prep_rollout()
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
+            if self.buffer.available_actions is None:
+                available_actions= None
+            else:
+                available_actions= np.concatenate(self.buffer.available_actions[-1])
             next_values = self.trainer.policy.get_values(np.concatenate(self.buffer.share_obs[-1]),
-                                                        np.concatenate(self.buffer.obs[-1]),
-                                                        np.concatenate(self.buffer.rnn_states_critic[-1]),
-                                                        np.concatenate(self.buffer.masks[-1]))
+                                                         np.concatenate(self.buffer.obs[-1]),
+                                                         np.concatenate(self.buffer.rnn_states_critic[-1]),
+                                                         np.concatenate(self.buffer.masks[-1]),
+                                                         available_actions)
         else:
             next_values = self.trainer.policy.get_values(np.concatenate(self.buffer.share_obs[-1]),
                                                         np.concatenate(self.buffer.rnn_states_critic[-1]),
@@ -142,7 +147,7 @@ class Runner(object):
 
     def save(self, episode=0):
         """Save policy's actor and critic networks."""
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec" or self.algorithm_name == "commformer":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
             self.policy.save(self.save_dir, episode)
         else:
             policy_actor = self.trainer.policy.actor
@@ -152,7 +157,7 @@ class Runner(object):
 
     def restore(self, model_dir):
         """Restore policy's networks from a saved model."""
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
             self.policy.restore(model_dir)
         else:
             policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor.pt')

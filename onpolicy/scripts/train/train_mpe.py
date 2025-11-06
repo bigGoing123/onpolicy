@@ -54,11 +54,47 @@ def make_eval_env(all_args):
 def parse_args(args, parser):
     parser.add_argument('--scenario_name', type=str,
                         default='simple_spread', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int, default=3)
+    parser.add_argument("--num_landmarks", type=int,
+                        default=3)
     parser.add_argument('--num_agents', type=int,
                         default=3, help="number of players")
-    
+    parser.add_argument('--nenemies', type=int, default=1,
+                         help="Total number of preys in play")
+    parser.add_argument('--dim', type=int, default=5,
+                        help="Dimension of box")
+    parser.add_argument('--vision', type=int, default=1,
+                        help="Vision of predator")
+    parser.add_argument('--moving_prey', action="store_true", default=False,
+                        help="Whether prey is fixed or moving")
+    parser.add_argument('--no_stay', action="store_true", default=False,
+                        help="Whether predators have an action to stay in place")
+    parser.add_argument('--mode', default='mixed', type=str,
+                    help='cooperative|competitive|mixed (default: mixed)')
+    parser.add_argument('--enemy_comm', action="store_true", default=False,
+                        help="Whether prey can communicate.")
+    parser.add_argument('--nfriendly_P', type=int, default=2,
+                        help="Total number of friendly perception agents in play")
+    parser.add_argument('--nfriendly_A', type=int, default=1,
+                        help="Total number of friendly action agents in play")
+    parser.add_argument('--tensor_obs', action="store_true", default=False,
+                        help="Do you want a tensor observation")
+    parser.add_argument('--second_reward_scheme', action="store_true", default=False,
+                        help="Do you want a partial reward for capturing and partial for getting to it?")
+    parser.add_argument('--A_vision', type=int, default=-1,
+                        help="Vision of A agents. If -1, defaults to blind")
+    parser.add_argument('--eval_episode_length', type=int, default=20)
     all_args = parser.parse_known_args(args)[0]
+
+    all_args.nfriendly = all_args.nfriendly_P + all_args.nfriendly_A
+    all_args.num_agents = all_args.nfriendly
+    all_args.npredator = all_args.num_agents
+
+    # Enemy comm
+    if hasattr(all_args, 'enemy_comm') and all_args.enemy_comm:
+        if hasattr(all_args, 'nenemies'):
+            all_args.num_agents += all_args.nenemies
+        else:
+            raise RuntimeError("parser. needs to pass argument 'nenemy'.")
 
     return all_args
 
@@ -71,7 +107,7 @@ def main(args):
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
         all_args.use_recurrent_policy = True
         all_args.use_naive_recurrent_policy = False
-    elif all_args.algorithm_name == "mappo"or all_args.algorithm_name == "mat" :
+    elif all_args.algorithm_name in ["mappo","mat","mat_dec","commformer","commformer_dec"]: 
         print("u are choosing to use mappo, we set use_recurrent_policy & use_naive_recurrent_policy to be False")
         all_args.use_recurrent_policy = False 
         all_args.use_naive_recurrent_policy = False
@@ -118,14 +154,9 @@ def main(args):
                          reinit=True,
                          settings=wandb.Settings(start_method="thread",mode="online"))
     else:
-        if not run_dir.exists():
-            curr_run = 'run1'
-        else:
-            exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in run_dir.iterdir() if str(folder.name).startswith('run')]
-            if len(exst_run_nums) == 0:
-                curr_run = 'run1'
-            else:
-                curr_run = 'run%i' % (max(exst_run_nums) + 1)
+        import time
+        timestr = time.strftime("%y%m%d-%H%M%S")
+        curr_run = all_args.prefix_name + "-" + timestr
         run_dir = run_dir / curr_run
         if not run_dir.exists():
             os.makedirs(str(run_dir))

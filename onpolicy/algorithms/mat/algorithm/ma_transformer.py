@@ -10,8 +10,6 @@ from onpolicy.algorithms.utils.transformer_act import discrete_parallel_act
 from onpolicy.algorithms.utils.transformer_act import continuous_autoregreesive_act
 from onpolicy.algorithms.utils.transformer_act import continuous_parallel_act
 
-from onpolicy.algorithms.mat.algorithm.leader_selector import apply_local_communication
-
 def init_(m, gain=0.01, activate=False):
     if activate:
         gain = nn.init.calculate_gain('relu')
@@ -63,6 +61,7 @@ class SelfAttention(nn.Module):
         y = self.proj(y)
         return y
 
+
 class EncodeBlock(nn.Module):
     """ an unassuming Transformer block """
 
@@ -83,7 +82,7 @@ class EncodeBlock(nn.Module):
         x = self.ln1(x + self.attn(x, x, x))
         x = self.ln2(x + self.mlp(x))
         return x
-    
+
 
 class DecodeBlock(nn.Module):
     """ an unassuming Transformer block """
@@ -220,7 +219,6 @@ class Decoder(nn.Module):
             logit = self.head(x)
 
         return logit
-    
 
 
 class MultiAgentTransformer(nn.Module):
