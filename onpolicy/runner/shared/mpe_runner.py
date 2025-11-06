@@ -12,7 +12,6 @@ class MPERunner(Runner):
     """Runner class to perform training, evaluation. and data collection for the MPEs. See parent class for details."""
     def __init__(self, config):
         super(MPERunner, self).__init__(config)
-        self.best_reward = config['best_reward']
     def run(self):
         self.warmup()   
 
@@ -44,7 +43,7 @@ class MPERunner(Runner):
             
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
-                self.save()
+                self.save(episode)
 
             # log information
             if episode % self.log_interval == 0:
@@ -70,10 +69,6 @@ class MPERunner(Runner):
                         env_infos[agent_k] = idv_rews
 
                 train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
-                if train_infos["average_episode_rewards"] > self.best_reward:
-                    self.best_reward = np.mean(idv_rews)
-                    self.save(episode=66666)#保存最好的模型
-                    print("save best model")
                 print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
@@ -99,14 +94,6 @@ class MPERunner(Runner):
     @torch.no_grad()
     def collect(self, step):
         self.trainer.prep_rollout()
-
-        if self.algorithm_name=="mat":
-            # 获取位置信息
-            positions = torch.tensor(self.buffer.obs[:, :, :2]).float().to(self.device)
-
-            # 传递位置信息
-            self.trainer.policy.set_positions(positions)
-
         value, action, action_log_prob, rnn_states, rnn_states_critic \
             = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
                             np.concatenate(self.buffer.obs[step]),
@@ -222,7 +209,14 @@ class MPERunner(Runner):
                 calc_start = time.time()
 
                 self.trainer.prep_rollout()
-                action, rnn_states = self.trainer.policy.act(np.concatenate(obs),
+                if self.use_centralized_V:
+                    share_obs = obs.reshape(self.n_rollout_threads, -1)
+                    share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
+                else:
+                    share_obs = obs
+                action, rnn_states = self.trainer.policy.act(
+                                                    np.concatenate(share_obs),
+                                                    np.concatenate(obs),
                                                     np.concatenate(rnn_states),
                                                     np.concatenate(masks),
                                                     deterministic=True)
@@ -261,5 +255,5 @@ class MPERunner(Runner):
 
             print("average episode rewards is: " + str(np.mean(np.sum(np.array(episode_rewards), axis=0))))
 
-        if self.all_args.save_gifs:
-            imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+            if self.all_args.save_gifs:
+                imageio.mimsave(str(self.gif_dir) + f'/render{episode}.gif', all_frames, duration=self.all_args.ifi)

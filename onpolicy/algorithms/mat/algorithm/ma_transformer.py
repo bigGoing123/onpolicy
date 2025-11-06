@@ -39,16 +39,7 @@ class SelfAttention(nn.Module):
 
         self.att_bp = None
 
-        # 计数
-        self.step_counter = 0
-        self.cached_att_mask = None
-        self.cached_positions = None
-
-    def forward(self, key, value, query, positions):
-        if positions is None:
-            print("Error: positions is None!")
-            raise ValueError("positions should not be None!")
-
+    def forward(self, key, value, query):
         B, L, D = query.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -61,87 +52,16 @@ class SelfAttention(nn.Module):
 
         # self.att_bp = F.softmax(att, dim=-1)
 
-        # if self.masked:
-        #     att = att.masked_fill(self.mask[:, :, :L, :L] == 0, float('-inf'))
+        if self.masked:
+            att = att.masked_fill(self.mask[:, :, :L, :L] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
 
-        if not hasattr(self, 'step_counter'):
-            self.step_counter = 0
-            self.cached_att_mask = None
-            self.cached_positions = None  # 缓存上次更新时的位置
-
-        # 更新通信掩码的频率
-        update_frequency = 5000
-        self.step_counter += 1
-
-        # 计算智能体位置变化
-        if self.cached_positions is not None:
-            position_change = torch.mean(torch.abs(positions - self.cached_positions))
-        else:
-            position_change = float('inf')  # 初次初始化时，强制触发更新
-
-        # 更新掩码的条件：步长条件 或 位置变化超过阈值
-        threshold = 0.3  # 根据环境动态性设置阈值
-        if (self.step_counter % update_frequency == 0 or
-                self.cached_att_mask is None or
-                position_change > threshold):
-            # print(f"Step {self.step_counter}: Updating cached_att_mask (Position Change: {position_change})")
-            batch_size = B
-            seq_len = L
-            num_heads = self.n_head
-            self.cached_att_mask = apply_local_communication(
-                att.detach().clone(),
-                positions,
-                n_clusters=self.n_head,
-                batch_size=batch_size,
-                num_heads=num_heads,
-                seq_len=seq_len,
-            )
-            # print(f"Step {self.step_counter}: Updated cached_att_mask {self.cached_att_mask.shape}")
-            self.cached_positions = positions.detach().clone()
-
-        # Debug: 检查掩码和输入的形状
-        # if self.cached_att_mask is not None:
-        #     assert self.cached_att_mask.shape == att.shape, \
-        #         f"Shape mismatch: cached_att_mask {self.cached_att_mask.shape}, att {att.shape}"
-        att1 = self.cached_att_mask
-
-        #
-        # if self.masked:
-        #     if (self.step_counter % update_frequency == 0 or self.cached_att_mask is None or
-        #             self.cached_att_mask.shape != att.shape):
-        #         # print(self.step_counter)
-        #         batch_size = B
-        #         seq_len = L
-        #         num_heads = self.n_head
-        #         self.cached_att_mask = apply_local_communication(
-        #             att.detach().clone(),  # 确保没有计算图依赖
-        #             positions,
-        #             n_clusters=self.n_head,
-        #             batch_size=batch_size,
-        #             num_heads=num_heads,
-        #             seq_len=seq_len,
-        #         ).detach().clone()
-        #     else:
-        #         att = att.masked_fill(self.mask[:, :, :L, :L] == 0, float('-inf'))
-        #         # 使用缓存的掩码
-        #     att = self.cached_att_mask
-
-        # 原始
-        # batch_size = B
-        # seq_len = L
-        # num_heads = self.n_head
-        # att = apply_local_communication(att, positions, n_clusters=self.n_head,batch_size=batch_size, num_heads=num_heads, seq_len=seq_len)
-        # print(f"Step {self.step_counter}: Updated cached_att_mask {att.shape}")
-
-        att1 = F.softmax(att, dim=-1)
-
-        y = att1 @ v  # (B, nh, L, L) x (B, nh, L, hs) -> (B, nh, L, hs)
+        y = att @ v  # (B, nh, L, L) x (B, nh, L, hs) -> (B, nh, L, hs)
         y = y.transpose(1, 2).contiguous().view(B, L, D)  # re-assemble all head outputs side by side
 
         # output projection
         y = self.proj(y)
         return y
-
 
 class EncodeBlock(nn.Module):
     """ an unassuming Transformer block """
@@ -159,11 +79,11 @@ class EncodeBlock(nn.Module):
             init_(nn.Linear(1 * n_embd, n_embd))
         )
 
-    def forward(self, x, positions):
-        x = self.ln1(x + self.attn(x, x, x, positions=positions))
+    def forward(self, x):
+        x = self.ln1(x + self.attn(x, x, x))
         x = self.ln2(x + self.mlp(x))
         return x
-
+    
 
 class DecodeBlock(nn.Module):
     """ an unassuming Transformer block """
@@ -182,9 +102,9 @@ class DecodeBlock(nn.Module):
             init_(nn.Linear(1 * n_embd, n_embd))
         )
 
-    def forward(self, x, rep_enc, positions):
-        x = self.ln1(x + self.attn1(x, x, x, positions=positions))
-        x = self.ln2(rep_enc + self.attn2(key=x, value=x, query=rep_enc, positions=positions))
+    def forward(self, x, rep_enc):
+        x = self.ln1(x + self.attn1(x, x, x))
+        x = self.ln2(rep_enc + self.attn2(key=x, value=x, query=rep_enc))
         x = self.ln3(x + self.mlp(x))
         return x
 
@@ -211,7 +131,7 @@ class Encoder(nn.Module):
         self.head = nn.Sequential(init_(nn.Linear(n_embd, n_embd), activate=True), nn.GELU(), nn.LayerNorm(n_embd),
                                   init_(nn.Linear(n_embd, 1)))
 
-    def forward(self, state, obs, positions):
+    def forward(self, state, obs):
         # state: (batch, n_agent, state_dim)
         # obs: (batch, n_agent, obs_dim)
         if self.encode_state:
@@ -221,9 +141,7 @@ class Encoder(nn.Module):
             obs_embeddings = self.obs_encoder(obs)
             x = obs_embeddings
 
-        # rep = self.blocks(self.ln(x))
-        for block in self.blocks:
-            rep = block(x, positions=positions)
+        rep = self.blocks(self.ln(x))
         v_loc = self.head(rep)
 
         return v_loc, rep
@@ -282,7 +200,7 @@ class Decoder(nn.Module):
             self.log_std.data = log_std
 
     # state, action, and return
-    def forward(self, action, obs_rep, obs, positions):
+    def forward(self, action, obs_rep, obs):
         # action: (batch, n_agent, action_dim), one-hot/logits?
         # obs_rep: (batch, n_agent, n_embd)
         if self.dec_actor:
@@ -298,10 +216,11 @@ class Decoder(nn.Module):
             action_embeddings = self.action_encoder(action)
             x = self.ln(action_embeddings)
             for block in self.blocks:
-                x = block(x, obs_rep, positions=positions)
+                x = block(x, obs_rep)
             logit = self.head(x)
 
         return logit
+    
 
 
 class MultiAgentTransformer(nn.Module):
@@ -316,7 +235,7 @@ class MultiAgentTransformer(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.action_type = action_type
         self.device = device
-        self.position = None
+
         # state unused
         state_dim = 37
 
@@ -329,7 +248,7 @@ class MultiAgentTransformer(nn.Module):
         if self.action_type != 'Discrete':
             self.decoder.zero_std(self.device)
 
-    def forward(self, state, obs, action, available_actions=None, positions=None):
+    def forward(self, state, obs, action, available_actions=None):
         # state: (batch, n_agent, state_dim)
         # obs: (batch, n_agent, obs_dim)
         # action: (batch, n_agent, 1)
@@ -347,18 +266,18 @@ class MultiAgentTransformer(nn.Module):
             available_actions = check(available_actions).to(**self.tpdv)
 
         batch_size = np.shape(state)[0]
-        v_loc, obs_rep = self.encoder(state, obs, positions=positions)
+        v_loc, obs_rep = self.encoder(state, obs)
         if self.action_type == 'Discrete':
             action = action.long()
             action_log, entropy = discrete_parallel_act(self.decoder, obs_rep, obs, action, batch_size,
-                                                        self.n_agent, self.action_dim, self.tpdv, available_actions, positions=positions)
+                                                        self.n_agent, self.action_dim, self.tpdv, available_actions)
         else:
             action_log, entropy = continuous_parallel_act(self.decoder, obs_rep, obs, action, batch_size,
-                                                          self.n_agent, self.action_dim, self.tpdv, positions=positions)
+                                                          self.n_agent, self.action_dim, self.tpdv)
 
         return action_log, v_loc, entropy
 
-    def get_actions(self, state, obs, available_actions=None, deterministic=False, positions=None):
+    def get_actions(self, state, obs, available_actions=None, deterministic=False):
         # state unused
         ori_shape = np.shape(obs)
         state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
@@ -369,26 +288,26 @@ class MultiAgentTransformer(nn.Module):
             available_actions = check(available_actions).to(**self.tpdv)
 
         batch_size = np.shape(obs)[0]
-        v_loc, obs_rep = self.encoder(state, obs, positions=positions)
+        v_loc, obs_rep = self.encoder(state, obs)
         if self.action_type == "Discrete":
             output_action, output_action_log = discrete_autoregreesive_act(self.decoder, obs_rep, obs, batch_size,
                                                                            self.n_agent, self.action_dim, self.tpdv,
-                                                                           available_actions, deterministic, positions=positions)
+                                                                           available_actions, deterministic)
         else:
             output_action, output_action_log = continuous_autoregreesive_act(self.decoder, obs_rep, obs, batch_size,
                                                                              self.n_agent, self.action_dim, self.tpdv,
-                                                                             deterministic, positions=positions)
+                                                                             deterministic)
 
         return output_action, output_action_log, v_loc
 
-    def get_values(self, state, obs, positions=None):
+    def get_values(self, state, obs, available_actions=None):
         # state unused
         ori_shape = np.shape(state)
         state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
 
         state = check(state).to(**self.tpdv)
         obs = check(obs).to(**self.tpdv)
-        v_tot, obs_rep = self.encoder(state, obs, positions=positions)
+        v_tot, obs_rep = self.encoder(state, obs)
         return v_tot
 
 

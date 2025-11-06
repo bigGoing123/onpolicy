@@ -49,7 +49,7 @@ class Runner(object):
 
         # dir
         self.model_dir = self.all_args.model_dir
-
+        self.gif_dir = self.all_args.gif_dir
         if self.use_wandb:
             self.save_dir = str(wandb.run.dir)
             self.run_dir = str(wandb.run.dir)
@@ -142,7 +142,7 @@ class Runner(object):
 
     def save(self, episode=0):
         """Save policy's actor and critic networks."""
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec" or self.algorithm_name == "commformer":
             self.policy.save(self.save_dir, episode)
         else:
             policy_actor = self.trainer.policy.actor

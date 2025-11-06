@@ -11,6 +11,7 @@ from onpolicy.config import get_config
 from onpolicy.envs.mpe.MPE_env import MPEEnv
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 import matplotlib.font_manager as fm
+from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
 _ = fm._load_fontmanager(try_read_cache=False)
 """Train script for MPEs."""
 
@@ -55,8 +56,8 @@ def parse_args(args, parser):
                         default='simple_spread', help="Which scenario to run on")
     parser.add_argument("--num_landmarks", type=int, default=3)
     parser.add_argument('--num_agents', type=int,
-                        default=2, help="number of players")
-
+                        default=3, help="number of players")
+    
     all_args = parser.parse_known_args(args)[0]
 
     return all_args
@@ -115,7 +116,7 @@ def main(args):
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True,
-                         settings=wandb.Settings(start_method="thread"))
+                         settings=wandb.Settings(start_method="thread",mode="online"))
     else:
         if not run_dir.exists():
             curr_run = 'run1'
@@ -151,14 +152,8 @@ def main(args):
         "run_dir": run_dir
     }
 
-    # run experiments
-    if all_args.share_policy:
-        from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
-    else:
-        from onpolicy.runner.separated.mpe_runner import MPERunner as Runner
-
     runner = Runner(config)
-    runner.render()
+    runner.run()
     
     # post process
     envs.close()

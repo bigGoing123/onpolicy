@@ -24,8 +24,6 @@ class TransformerPolicy:
         self.weight_decay = args.weight_decay
         self._use_policy_active_masks = args.use_policy_active_masks
 
-        self.positions = None
-
         if act_space.__class__.__name__ == 'Box':
             self.action_type = 'Continuous'
         else:
@@ -57,20 +55,6 @@ class TransformerPolicy:
         if args.env_name == "hands":
             self.transformer.zero_std()
 
-        # count the volume of parameters of model
-        # Total_params = 0
-        # Trainable_params = 0
-        # NonTrainable_params = 0
-        # for param in self.transformer.parameters():
-        #     mulValue = np.prod(param.size())
-        #     Total_params += mulValue
-        #     if param.requires_grad:
-        #         Trainable_params += mulValue
-        #     else:
-        #         NonTrainable_params += mulValue
-        # print(f'Total params: {Total_params}')
-        # print(f'Trainable params: {Trainable_params}')
-        # print(f'Non-trainable params: {NonTrainable_params}')
 
         self.optimizer = torch.optim.Adam(self.transformer.parameters(),
                                           lr=self.lr, eps=self.opti_eps,
@@ -108,13 +92,10 @@ class TransformerPolicy:
         if available_actions is not None:
             available_actions = available_actions.reshape(-1, self.num_agents, self.act_dim)
 
-        positions = self.get_positions()
-
         actions, action_log_probs, values = self.transformer.get_actions(cent_obs,
                                                                          obs,
                                                                          available_actions,
-                                                                         deterministic,
-                                                                         positions)
+                                                                         deterministic)
 
         actions = actions.view(-1, self.act_num)
         action_log_probs = action_log_probs.view(-1, self.act_num)
@@ -138,9 +119,7 @@ class TransformerPolicy:
         cent_obs = cent_obs.reshape(-1, self.num_agents, self.share_obs_dim)
         obs = obs.reshape(-1, self.num_agents, self.obs_dim)
 
-        positions = self.get_positions()
-
-        values = self.transformer.get_values(cent_obs, obs,positions)
+        values = self.transformer.get_values(cent_obs, obs)
 
         values = values.view(-1, 1)
 
@@ -164,17 +143,13 @@ class TransformerPolicy:
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
-        positions = self.get_positions()
-        if positions is None:
-            raise ValueError("None policy 188 (evaluate_actions)")
-
         cent_obs = cent_obs.reshape(-1, self.num_agents, self.share_obs_dim)
         obs = obs.reshape(-1, self.num_agents, self.obs_dim)
         actions = actions.reshape(-1, self.num_agents, self.act_num)
         if available_actions is not None:
             available_actions = available_actions.reshape(-1, self.num_agents, self.act_dim)
 
-        action_log_probs, values, entropy = self.transformer(cent_obs, obs, actions, available_actions, positions=positions)
+        action_log_probs, values, entropy = self.transformer(cent_obs, obs, actions, available_actions)
 
         action_log_probs = action_log_probs.view(-1, self.act_num)
         values = values.view(-1, 1)
@@ -223,11 +198,3 @@ class TransformerPolicy:
 
     def eval(self):
         self.transformer.eval()
-
-    def set_positions(self, positions):
-        """设置位置信息"""
-        self.positions = positions
-
-    def get_positions(self):
-        """获取位置信息"""
-        return self.positions
