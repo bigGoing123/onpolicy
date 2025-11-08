@@ -66,9 +66,12 @@ class Runner(object):
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
 
-        if self.algorithm_name in ["mat", "mat_dec", "commformer", "commformer_dec"]:
+        if self.algorithm_name in ["mat", "mat_dec"]:
             from onpolicy.algorithms.mat.mat_trainer import MATTrainer as TrainAlgo
             from onpolicy.algorithms.mat.algorithm.transformer_policy import TransformerPolicy as Policy
+        elif self.algorithm_name in ["commformer", "commformer_dec"]:
+            from onpolicy.algorithms.commformer.commformer_trainer import CommFormerTrainer as TrainAlgo
+            from onpolicy.algorithms.commformer.algorithm.transformer_policy import TransformerPolicy as Policy
         else:
             from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
@@ -147,10 +150,10 @@ class Runner(object):
         next_values = np.array(np.split(_t2n(next_values), self.n_rollout_threads))
         self.buffer.compute_returns(next_values, self.trainer.value_normalizer)
     
-    def train(self):
+    def train(self, step=0, total_step=0):
         """Train policies with data in buffer. """
         self.trainer.prep_training()
-        train_infos = self.trainer.train(self.buffer)      
+        train_infos = self.trainer.train(self.buffer, step=step, total_step=total_step)
         self.buffer.after_update()
         return train_infos
 

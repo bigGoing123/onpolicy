@@ -14,4 +14,4 @@ CUDA_VISIBLE_DEVICES=0 python render_mpe.py --env_name ${env} --algorithm_name $
 --experiment_name ${exp} --scenario_name ${scenario} --num_agents ${num_agents} --num_landmarks \
  ${num_landmarks} --seed ${seed} --n_rollout_threads 1 --save_gifs --episode_length 100 \
  --n_training_threads 1 --n_rollout_threads 1 --use_render  --render_episodes 2 --ifi 0.1 --prefix_name ${prefix_name} \
- --model_dir /work/sdim-lemons/wangchao/onpolicy/onpolicy/scripts/results/MPE/simple_spread/mat/single/mgdt/wandb/offline-run-20251106_221648-tca49xud/files/transformer_0.pt \
+ --model_dir /work/sdim-lemons/wangchao/onpolicy/onpolicy/scripts/results/MPE/simple_spread/mat/single/mgdt/wandb/offline-run-20251106_221648-tca49xud/files/transformer_6249.pt \

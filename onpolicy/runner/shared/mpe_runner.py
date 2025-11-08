@@ -73,6 +73,10 @@ class MPERunner(Runner):
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
 
+                edges = _t2n(self.trainer.policy.transformer.edge_return(exact=True))
+                image = wandb.Image(edges, caption=f"Matrix at step {total_num_steps}")
+                wandb.log({"Matrix": image}, step=total_num_steps)
+
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
