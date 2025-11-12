@@ -211,7 +211,7 @@ class TransformerPolicy:
         torch.save(self.transformer.state_dict(), str(save_dir) + "/transformer_" + str(episode) + ".pt")
 
     def restore(self, model_dir):
-        transformer_state_dict = torch.load(model_dir)
+        transformer_state_dict = torch.load(model_dir,weights_only=True)
         self.transformer.load_state_dict(transformer_state_dict)
         # self.transformer.reset_std()
 
